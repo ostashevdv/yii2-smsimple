@@ -1,5 +1,5 @@
 {
-    "name": "ostashevdv/smsimple",
+    "name": "ostashevdv/yii2-smsimple",
     "description": "Отправка смс сообщений через сервис smsimple",
     "type": "yii2-extension",
     "keywords": ["yii2","sms","yii2 sms extension"],
