@@ -1,0 +1,26 @@
+{
+    "name": "ostashevdv/smsimple",
+    "description": "Отправка смс сообщений через сервис smsimple",
+    "type": "yii2-extension",
+    "keywords": ["yii2","sms","yii2 sms extension"],
+    "license": "BSD-3-Clause",
+    "authors": [
+        {
+            "name": "ostashevdv",
+            "email": "ostashevdv@gmail.com"
+        }
+    ],
+    "require": {
+        "yiisoft/yii2": "~2.0.0",
+        "phpxmlrpc/phpxmlrpc": "dev-master"
+    },
+    "autoload": {
+        "psr-4": {
+            "ostashevdv\\smsimple\\": "src"
+        }
+    }
+}
+
+
+
+
