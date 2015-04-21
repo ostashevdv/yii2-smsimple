@@ -1,23 +1,28 @@
 <?php
 namespace ostashevdv\smsimple;
 
+require "smsimple.class.php";
 
-class SMSimple extends \yii\base\Component
+use \SMSimple as SMSbase;
+use \SMSimpleException;
+
+class SMSimple extends SMSbase implements \yii\base\Configurable
 {
-
     public $session_id = '';
-    public $origin_id = null;
-    public $username = null;
-    public $password = null;
+    public $username = '';
+    public $password = '';
     public $encoding = 'UTF-8';
+    public $xmlrpc = null;
+    public $input_encoding = 'UTF-8';
+    public $new_xmlrpc = 'auto';
     public $url = 'http://api.smsimple.ru';
+    public $origin_id = null;
 
-
-    protected $xmlrpc = null;
-
-    public function init()
+    public function __construct($config=[])
     {
-        parent::init();
+        if (!empty($config)) {
+           \Yii::configure($this, $config);
+        }
         $GLOBALS['xmlrpc_internalencoding'] = $this->encoding;
         $GLOBALS['xmlrpc_defencoding'] = $this->encoding;
         $this->xmlrpc = new \xmlrpc_client($this->url);
@@ -26,154 +31,19 @@ class SMSimple extends \yii\base\Component
     }
 
     /**
-     * Системный метод вызова XML-RPC функций API
-     */
-    protected function _doApiCall($method, $params=array()) {
-        $response = $this->xmlrpc->send(new \xmlrpcmsg('call', array(new \xmlrpcval($method), php_xmlrpc_encode($params))));
-        if ($response->faultCode())
-            throw new SMSimpleException($response->faultString());
-        $result = $response->value();
-        if (isset($result['info']) && !empty($result['info']))
-            throw new SMSimpleException($result['info']);
-        if (isset($result['result']))
-            return $result['result'];
-        return false;
-    }
-
-    /**
-     * Соединение с шлюзом SMSimple.ru
-     */
-    public function connect() {
-        $res = $this->_doApiCall('pajm.user.auth', array(
-            'username' => $this->username,
-            'password' => $this->password,
-        ));
-        if (!$res){
-            throw new SMSimpleException('Invalid API username or password');
-        }
-        $this->session_id = $res['session_id'];
-        return true;
-    }
-
-    /**
      * Отправка одиночного сообщения
+     *----------------------------------------------
+     * @param:  $phone      string  телефонный номер абонента (любой формат с кодом-телефоном, например `'8-916-1234567'` или `'79161234567'`) или несколько через запятую (пробелы разрешены, например `'79031234567, 89161234567'`)
+     * @param:  $message    string  текст SMS-сообщения
+     * @param*:  $multiple   bool    необязательный параметр, по-умолчанию `false`. Если вы отправляете сообщение сразу нескольким адресатам, то им присвоистся один и тот же (`false`) или разные (`true`) номера.
+     *
+     * @returns: int Возвращает номер (`id`) сообщения, по которому потом можно получать статус доставки/недоставки. Для `$multiple = false` вернёт одно число, для `$multiple = true` -- массив номеров в той последовательности, в которой шли телефоны абонентов.
      */
-    /**
-     * @param array | string $phones массив или строка с номерами телефонов через запятую
-     * @param string $message текст сообщения
-     * @param null $origin_id имя подписи от кого производится рассылка
-     * @param bool $multiple
-     * @return int
-     * @throws SMSimpleException
-     */
-    public function send($phones, $message, $origin_id=null, $multiple = false)
+    public function send($phone, $message, $multiple = false, $origin_id=null)
     {
-        if($origin_id===null) {
-            $origin_id = $this->origin_id;
+        if ( ($origin_id = $origin_id ? : $this->origin_id)===null ) {
+            throw new SMSimpleException('$origin_id is not configured.');
         }
-        if (is_array($phones)) {
-            $phones = join(', ', $phones);
-        }
-        $message_id = $this->_doApiCall('pajm.sms.send', array(
-            'session_id' => $this->session_id,
-            'origin_id'  => $origin_id,
-            'phone'      => $phones,
-            'message'    => $message,
-            'multiple'   => $multiple,
-        ));
-        return $message_id;
+        return parent::send($origin_id, $phone, $message, $message);
     }
-
-    /**
-     * Проверка статуса доставки сообщения, отправленного с помощью метода send()
-     */
-    public function check_delivery($message_id) {
-        $message_id = $this->_doApiCall('pajm.sms.get_delivery', array(
-            'session_id' => $this->session_id,
-            'sms_id'     => $message_id,
-        ));
-        return $message_id;
-    }
-
-    /**
-     * Создание новой рассылки
-     */
-    public function addJob($params=array()) {
-        $job_id = $this->_doApiCall('pajm.job.add', array(
-            'session_id' => $this->session_id,
-            'origin_id'  => $params['origin_id'],
-            'groups'     => $params['groups_ids'],
-            'title'      => $params['title'],
-            'template'   => $params['message'],
-            'start_date' => $params['start_date'],
-            'start_time' => $params['start_time'],
-            'stop_time'  => $params['stop_time'],
-        ));
-        return $job_id;
-    }
-
-    /**
-     * Получение списка подписей
-     */
-    public function origins() {
-        return $this->_doApiCall('pajm.origin.select', array(
-            'session_id' => $this->session_id,
-        ));
-    }
-
-    /**
-     * Вставка нового контакта в существующую группу
-     *      $params = array(
-     *          'group_id' => 1,
-     *          'phone'    => '7-926-111-22-33',
-     *          'title'    => 'Василий Пупкин',
-     *          'custom_1' => '',
-     *          'custom_2' => '',
-     *      );
-     */
-    public function addContactToGroup($params=array()) {
-        return $this->_doApiCall('pajm.contact.add', array(
-            'session_id' => $this->session_id,
-            'group_id'   => $params['group_id'],
-            'phone'      => $params['phone'],
-            'title'      => $params['title'],
-            'custom_1'   => $params['custom_1'],
-            'custom_2'   => $params['custom_2'],
-        ));
-    }
-
-    /**
-     * Получение информации о профиле
-     */
-    public function get_profile() {
-        return $this->_doApiCall('pajm.user.get', array(
-            'session_id' => $this->session_id,
-        ));
-    }
-    
-    /**
-     * Старт USSD сессии
-     * $phone = 7-999-1234567
-     * $optional = любые данные для дополнительной идентификации, сопровождают сессию до закрытия
-     * $encoding = 'GSM-7' для меню на латинице или 'UCS2' для меню с русскими буквами
-     */
-    public function ussd_session_start($phone,$optional=null,$encoding='GSM-7') {
-        return $this->_doApiCall('pajm.ussd.start_session', array(
-            'session_id' => $this->session_id,
-            'phone' => $phone,
-            'optional' => $optional,
-            'encoding' => $encoding,
-        ));
-    }   
-
-    /**
-     * Прерывание USSD сессии
-     */
-    public function ussd_session_abort($ussd_session_id) {
-        return $this->_doApiCall('pajm.ussd.release_session', array(
-            'session_id' => $this->session_id,
-            'ussd_session_id' => $ussd_session_id,
-        ));
-    }   
-
 }
