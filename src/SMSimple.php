@@ -25,7 +25,7 @@ class SMSimple extends SMSbase implements \yii\base\Configurable
         }
         $GLOBALS['xmlrpc_internalencoding'] = $this->encoding;
         $GLOBALS['xmlrpc_defencoding'] = $this->encoding;
-        $this->xmlrpc = new \xmlrpc_client($this->url);
+        $this->xmlrpc = new \PhpXmlRpc\Client($this->url);
         $this->xmlrpc->return_type = 'phpvals';
         $this->xmlrpc->request_charset_encoding = $this->encoding;
     }
